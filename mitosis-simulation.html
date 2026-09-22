@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mitosis — Stage Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #05070c;
+    --bg-2: #0a0e18;
+    --panel: #0d1220;
+    --line: #1c2438;
+    --ink: #e7ecf7;
+    --ink-dim: #8792ab;
+    --accent: #7cf29c;
+    --dna: #5ec8ff;
+    --dna-2: #ff6ec8;
+    --dna-3: #a3ff6e;
+    --dna-4: #ffd166;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top: env(safe-area-inset-top, 0px);}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background: radial-gradient(ellipse at 50% -10%, #0e1526 0%, var(--bg) 55%);
+    color: var(--ink);
+    font-family: var(--sans);
+    min-height: 100%;
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    padding: 22px clamp(16px,4vw,40px) 10px;
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+  }
+  header h1{
+    font-size: clamp(20px,2.6vw,28px);
+    font-weight:600;
+    letter-spacing:-0.01em;
+    margin:0;
+  }
+  header .tag{
+    font-family:var(--mono);
+    font-size:12px;
+    color: var(--ink-dim);
+    white-space:nowrap;
+  }
+  main{
+    flex:1;
+    display:grid;
+    grid-template-columns: minmax(0,1fr) 300px;
+    gap:0;
+  }
+  @media (max-width: 860px){
+    main{grid-template-columns: 1fr;}
+  }
+  .stage-col{
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .stage-wrap{
+    position:relative;
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 18px;
+    background:
+      linear-gradient(var(--bg-2), var(--bg-2)),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 28px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 28px);
+  }
+  canvas{
+    width:100%;
+    max-width:640px;
+    aspect-ratio: 1 / 1;
+    display:block;
+    border-radius: 8px;
+  }
+  .phase-badge{
+    position:absolute;
+    top: 30px;
+    left: 30px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    background: rgba(5,8,14,0.6);
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    border-radius: 3px;
+  }
+  .transport{
+    padding: 14px clamp(16px,4vw,40px) 20px;
+    border-top:1px solid var(--line);
+  }
+  .timeline{
+    position:relative;
+    height: 34px;
+    display:flex;
+    gap:2px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .seg{
+    flex:1;
+    position:relative;
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .seg .fill{
+    position:absolute; inset:0;
+    width:0%;
+    background: linear-gradient(90deg, rgba(124,242,156,0.35), rgba(124,242,156,0.55));
+  }
+  .seg.active{border-color: var(--accent);}
+  .seg .lbl{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--ink-dim);
+    letter-spacing:0.02em;
+    pointer-events:none;
+    padding: 0 2px;
+    text-align:center;
+  }
+  .seg.active .lbl{ color: var(--ink); }
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:12px;
+    flex-wrap:wrap;
+  }
+  button{
+    font-family: var(--sans);
+    font-weight:600;
+    font-size:13px;
+    background: var(--panel);
+    color: var(--ink);
+    border:1px solid var(--line);
+    border-radius: 5px;
+    padding: 8px 14px;
+    cursor:pointer;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  button:hover{ border-color:#39466b; background:#101729; }
+  button:focus-visible, .seg:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+  #playBtn{ min-width: 92px; }
+  .speed-group{
+    display:flex;
+    gap:4px;
+    margin-left:auto;
+    font-family:var(--mono);
+  }
+  .speed-group button{ padding:8px 10px; font-family:var(--mono); font-weight:400; font-size:12px; }
+  .speed-group button.on{ border-color: var(--accent); color: var(--accent); }
+  aside{
+    border-left:1px solid var(--line);
+    padding: 22px 22px 22px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+    overflow-y:auto;
+  }
+  @media (max-width: 860px){
+    aside{ border-left:none; border-top:1px solid var(--line); }
+  }
+  aside h2{
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-dim);
+    letter-spacing:0.05em;
+    margin: 0 0 4px;
+    font-weight:500;
+  }
+  .phase-name{
+    font-size: 21px;
+    font-weight:700;
+    margin: 0;
+    letter-spacing:-0.01em;
+  }
+  .phase-desc{
+    font-size: 13.5px;
+    line-height:1.55;
+    color: #c3cbdd;
+    margin:0;
+  }
+  .phase-list{
+    list-style:none;
+    margin:0; padding:0;
+    display:flex; flex-direction:column; gap:2px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .phase-list li{
+    padding: 7px 8px;
+    border-radius:4px;
+    color: var(--ink-dim);
+    cursor:pointer;
+    display:flex;
+    justify-content:space-between;
+    gap:8px;
+    border: 1px solid transparent;
+  }
+  .phase-list li:hover{ background:#101729; }
+  .phase-list li.active{
+    color: var(--ink);
+    background: rgba(124,242,156,0.08);
+    border-color: rgba(124,242,156,0.35);
+  }
+  .phase-list li .n{ color:#4c5875; }
+  .legend{
+    display:flex; flex-wrap:wrap; gap:8px 14px;
+    font-family: var(--mono); font-size:11px; color: var(--ink-dim);
+  }
+  .legend span{ display:flex; align-items:center; gap:6px; }
+  .swatch{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  footer{
+    padding: 10px clamp(16px,4vw,40px) 16px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: #4c5875;
+    border-top: 1px solid var(--line);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .seg .fill{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Mitosis — Stage Simulator</h1>
+  <div class="tag">ANIMAL CELL · SOMATIC DIVISION · 2n=4</div>
+</header>
+
+<main>
+  <div class="stage-col">
+    <div class="stage-wrap">
+      <div class="phase-badge" id="phaseBadge">INTERPHASE</div>
+      <canvas id="stage" width="900" height="900" aria-label="Mitosis animation stage"></canvas>
+    </div>
+
+    <div class="transport">
+      <div class="timeline" id="timeline" role="group" aria-label="Phase timeline"></div>
+      <div class="controls">
+        <button id="playBtn">⏸ Pause</button>
+        <button id="restartBtn">↺ Restart</button>
+        <div class="speed-group" id="speedGroup">
+          <button data-speed="0.5">0.5×</button>
+          <button data-speed="1" class="on">1×</button>
+          <button data-speed="2">2×</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <aside>
+    <div>
+      <h2>CURRENT STAGE</h2>
+      <p class="phase-name" id="phaseName">Interphase</p>
+      <p class="phase-desc" id="phaseDesc">—</p>
+    </div>
+
+    <div>
+      <h2>JUMP TO STAGE</h2>
+      <ul class="phase-list" id="phaseList"></ul>
+    </div>
+
+    <div>
+      <h2>LEGEND</h2>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--dna)"></i>Chromosome 1</span>
+        <span><i class="swatch" style="background:var(--dna-2)"></i>Chromosome 2</span>
+        <span><i class="swatch" style="background:var(--dna-3)"></i>Chromosome 3</span>
+        <span><i class="swatch" style="background:var(--dna-4)"></i>Chromosome 4</span>
+        <span><i class="swatch" style="background:var(--accent)"></i>Spindle fiber</span>
+        <span><i class="swatch" style="background:#ffffff"></i>Centrosome</span>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>CLICK A SEGMENT OR STAGE NAME TO JUMP · DRAG ON THE TIMELINE TO SCRUB</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const PHASES = [
+    {
+      key: "interphase",
+      name: "Interphase",
+      dur: 3.2,
+      desc: "The cell grows and duplicates its DNA. Chromatin is loosely spread through the nucleus, the nuclear envelope is intact, and the centrosome has already copied itself."
+    },
+    {
+      key: "prophase",
+      name: "Prophase",
+      dur: 3.0,
+      desc: "Chromatin condenses into visible chromosomes, each made of two sister chromatids joined at a centromere. The two centrosomes begin moving toward opposite poles as spindle fibers start to form."
+    },
+    {
+      key: "prometaphase",
+      name: "Prometaphase",
+      dur: 2.8,
+      desc: "The nuclear envelope breaks down. Spindle microtubules invade the nuclear space and attach to kinetochores on each chromosome, beginning to pull them toward the cell's centre."
+    },
+    {
+      key: "metaphase",
+      name: "Metaphase",
+      dur: 2.6,
+      desc: "All chromosomes line up along the metaphase plate, the imaginary plane at the cell's equator, each attached to spindle fibers from both poles — a checkpoint before separation."
+    },
+    {
+      key: "anaphase",
+      name: "Anaphase",
+      dur: 2.6,
+      desc: "Sister chromatids split apart at the centromere and are pulled by shortening spindle fibers toward opposite poles, becoming individual chromosomes."
+    },
+    {
+      key: "telophase",
+      name: "Telophase",
+      dur: 3.0,
+      desc: "Chromosomes arrive at the poles and decondense back into chromatin. A new nuclear envelope forms around each set, producing two distinct nuclei within the one cell."
+    },
+    {
+      key: "cytokinesis",
+      name: "Cytokinesis",
+      dur: 3.2,
+      desc: "A cleavage furrow pinches the cell membrane inward at the equator until it splits the cytoplasm in two, producing two genetically identical daughter cells."
+    }
+  ];
+
+  const COLORS = ["#5ec8ff", "#ff6ec8", "#a3ff6e", "#ffd166"];
+
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const CX = W/2, CY = H/2;
+
+  // ---- Timeline / transport UI ----
+  const totalDur = PHASES.reduce((s,p)=>s+p.dur,0);
+  let cursorT = 0;          // 0..totalDur, elapsed simulation time
+  let playing = true;
+  let speed = 1;
+  let lastTs = null;
+
+  const timelineEl = document.getElementById('timeline');
+  const phaseListEl = document.getElementById('phaseList');
+  const segEls = [];
+
+  PHASES.forEach((p, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'seg';
+    seg.style.flexGrow = p.dur;
+    seg.tabIndex = 0;
+    seg.setAttribute('role','button');
+    seg.setAttribute('aria-label', p.name);
+    const fill = document.createElement('div');
+    fill.className = 'fill';
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = p.name;
+    seg.appendChild(fill);
+    seg.appendChild(lbl);
+    timelineEl.appendChild(seg);
+    segEls.push({seg, fill});
+
+    const li = document.createElement('li');
+    li.innerHTML = '<span><span class="n">0'+(i+1)+'</span> '+p.name+'</span>';
+    li.addEventListener('click', () => jumpToPhase(i));
+    phaseListEl.appendChild(li);
+  });
+
+  function phaseStartTime(i){
+    let t = 0;
+    for(let k=0;k<i;k++) t += PHASES[k].dur;
+    return t;
+  }
+
+  function jumpToPhase(i){
+    cursorT = phaseStartTime(i) + 0.001;
+    render(true);
+  }
+
+  let scrubbing = false;
+  function scrubFromEvent(ev){
+    const rect = timelineEl.getBoundingClientRect();
+    const x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    const frac = Math.min(1, Math.max(0, x / rect.width));
+    cursorT = frac * totalDur;
+    render(true);
+  }
+  timelineEl.addEventListener('mousedown', e => { scrubbing = true; scrubFromEvent(e); });
+  window.addEventListener('mousemove', e => { if(scrubbing) scrubFromEvent(e); });
+  window.addEventListener('mouseup', () => scrubbing = false);
+  timelineEl.addEventListener('touchstart', e => { scrubbing = true; scrubFromEvent(e); }, {passive:true});
+  timelineEl.addEventListener('touchmove', e => { if(scrubbing) scrubFromEvent(e); }, {passive:true});
+  window.addEventListener('touchend', () => scrubbing = false);
+
+  const playBtn = document.getElementById('playBtn');
+  playBtn.addEventListener('click', () => {
+    playing = !playing;
+    playBtn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  });
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    cursorT = 0; playing = true; playBtn.textContent = '⏸ Pause';
+  });
+  document.getElementById('speedGroup').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if(!b) return;
+    speed = parseFloat(b.dataset.speed);
+    [...document.getElementById('speedGroup').children].forEach(c => c.classList.remove('on'));
+    b.classList.add('on');
+  });
+
+  const phaseBadge = document.getElementById('phaseBadge');
+  const phaseNameEl = document.getElementById('phaseName');
+  const phaseDescEl = document.getElementById('phaseDesc');
+
+  // ---- Geometry helpers ----
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function easeInOut(t){ return t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2; }
+  function clamp01(t){ return Math.min(1, Math.max(0, t)); }
+
+  const POLE_TOP = {x: CX, y: CY - 205};
+  const POLE_BOT = {x: CX, y: CY + 205};
+  const CELL_R = 250;
+
+  // 4 chromosomes, angular home positions scattered in nucleus during interphase
+  const homeAngles = [0.5, 2.1, 3.6, 5.1];
+  const plateX = [-105, -35, 35, 105];
+
+  function getChromosomes(phaseIdx, p, R){
+    // returns array of {color, mode:'blob'|'x'|'split', ...position data}
+    const list = [];
+    for(let i=0;i<4;i++){
+      const color = COLORS[i];
+      const home = {
+        x: CX + Math.cos(homeAngles[i]) * R * 0.42,
+        y: CY + Math.sin(homeAngles[i]) * R * 0.42
+      };
+      const plate = { x: CX + plateX[i], y: CY };
+
+      if(phaseIdx === 0){ // interphase - diffuse blob
+        list.push({color, mode:'blob', x:home.x, y:home.y, spread: 1});
+      } else if(phaseIdx === 1){ // prophase - condense in place
+        const t = easeInOut(p);
+        list.push({color, mode:'x', x:home.x, y:home.y, rot: i*0.7, scale: lerp(0.3,1,t), blobFade: 1-t});
+      } else if(phaseIdx === 2){ // prometaphase - move to plate
+        const t = easeInOut(p);
+        const x = lerp(home.x, plate.x, t);
+        const y = lerp(home.y, plate.y, t);
+        list.push({color, mode:'x', x, y, rot: lerp(i*0.7,0,t), scale:1});
+      } else if(phaseIdx === 3){ // metaphase - sit on plate
+        list.push({color, mode:'x', x:plate.x, y:plate.y, rot:0, scale:1});
+      } else if(phaseIdx === 4){ // anaphase - split to poles
+        const t = easeInOut(p);
+        const spreadX = plate.x + (i-1.5)*6;
+        const topY = lerp(plate.y, POLE_TOP.y + 30, t);
+        const botY = lerp(plate.y, POLE_BOT.y - 30, t);
+        list.push({color, mode:'single', x: lerp(plate.x, spreadX*0.4+CX*0.6, t), y: topY, scale:1});
+        list.push({color, mode:'single', x: lerp(plate.x, spreadX*0.4+CX*0.6, t), y: botY, scale:1});
+      } else if(phaseIdx === 5){ // telophase - decondense at poles
+        const t = easeInOut(p);
+        const clusterTopX = CX + (i-1.5)*22;
+        const clusterBotX = CX + (i-1.5)*22;
+        list.push({color, mode:'blob', x: clusterTopX, y: POLE_TOP.y + 30, spread: lerp(0.4,1,t)});
+        list.push({color, mode:'blob', x: clusterBotX, y: POLE_BOT.y - 30, spread: lerp(0.4,1,t)});
+      } else { // cytokinesis - same as telophase, fully decondensed
+        const clusterTopX = CX + (i-1.5)*22;
+        const clusterBotX = CX + (i-1.5)*22;
+        list.push({color, mode:'blob', x: clusterTopX, y: POLE_TOP.y + 30, spread: 1});
+        list.push({color, mode:'blob', x: clusterBotX, y: POLE_BOT.y - 30, spread: 1});
+      }
+    }
+    return list;
+  }
+
+  function drawChromatid(cx, cy, rot, len, w, color, alpha){
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(rot);
+    ctx.globalAlpha = alpha;
+    const grad = ctx.createLinearGradient(-len/2,0,len/2,0);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, color);
+    ctx.fillStyle = grad;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14;
+    roundRect(-len/2, -w/2, len, w, w/2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    ctx.closePath();
+  }
+
+  function drawChromosome(c){
+    ctx.save();
+    if(c.mode === 'blob'){
+      const r = 26 * (c.spread||1);
+      ctx.globalAlpha = 0.85;
+      const grad = ctx.createRadialGradient(c.x,c.y,1,c.x,c.y,r);
+      grad.addColorStop(0, c.color);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.shadowColor = c.color;
+      ctx.shadowBlur = 18;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, r, 0, Math.PI*2);
+      ctx.fill();
+    } else if(c.mode === 'x'){
+      const len = 46 * (c.scale||1);
+      const w = 11;
+      drawChromatid(c.x, c.y, (c.rot||0) + 0.42, len, w, c.color, 1);
+      drawChromatid(c.x, c.y, (c.rot||0) - 0.42, len, w, c.color, 1);
+      // centromere dot
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#0a0e18';
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, 3.4, 0, Math.PI*2);
+      ctx.fill();
+    } else if(c.mode === 'single'){
+      const len = 40;
+      const w = 10;
+      drawChromatid(c.x, c.y, Math.PI/2, len, w, c.color, 1);
+    }
+    ctx.restore();
+  }
+
+  // Nuclear envelope opacity by phase
+  function envelopeAlpha(phaseIdx, p){
+    if(phaseIdx === 0) return 1;
+    if(phaseIdx === 1) return 1 - easeInOut(p)*0.5;        // starts fading late prophase
+    if(phaseIdx === 2) return Math.max(0, 0.5 - easeInOut(p)*0.5); // gone by end
+    if(phaseIdx === 3 || phaseIdx === 4) return 0;
+    if(phaseIdx === 5) return easeInOut(p);                 // reforms
+    return 1;
+  }
+
+  function drawEnvelope(x,y,r,alpha){
+    if(alpha <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.strokeStyle = '#3a4a6b';
+    ctx.setLineDash([3,4]);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(x,y,r,r*0.98,0,0,Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function drawCentrosome(x,y,alpha, drawAsters, asterTargets){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    if(drawAsters && asterTargets){
+      ctx.strokeStyle = 'rgba(124,242,156,0.45)';
+      ctx.lineWidth = 1;
+      asterTargets.forEach(t => {
+        ctx.beginPath();
+        ctx.moveTo(x,y);
+        ctx.lineTo(t.x,t.y);
+        ctx.stroke();
+      });
+      // radiating aster rays (decorative)
+      for(let a=0;a<14;a++){
+        const ang = (a/14)*Math.PI*2;
+        ctx.beginPath();
+        ctx.moveTo(x,y);
+        ctx.lineTo(x+Math.cos(ang)*34, y+Math.sin(ang)*34);
+        ctx.strokeStyle = 'rgba(124,242,156,0.15)';
+        ctx.stroke();
+      }
+    }
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = '#ffffff';
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x,y,5,0,Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 8;
+    ctx.globalAlpha = alpha*0.15;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMembrane(phaseIdx, p){
+    ctx.save();
+    let sep = 0, r = CELL_R;
+    if(phaseIdx <= 3){
+      sep = 0; r = CELL_R;
+    } else if(phaseIdx === 4){ // anaphase: slight elongation
+      sep = easeInOut(p) * CELL_R * 0.22;
+      r = CELL_R * lerp(1, 0.98, easeInOut(p));
+    } else if(phaseIdx === 5){ // telophase: elongate further, start narrowing waist
+      sep = lerp(CELL_R*0.22, CELL_R*0.62, easeInOut(p));
+      r = CELL_R * 0.92;
+    } else { // cytokinesis: pinch fully apart
+      sep = lerp(CELL_R*0.62, CELL_R*1.62, easeInOut(p));
+      r = CELL_R * lerp(0.92, 0.7, easeInOut(p));
+    }
+
+    const topC = {x:CX, y:CY - sep/2};
+    const botC = {x:CX, y:CY + sep/2};
+
+    const grad1 = ctx.createRadialGradient(topC.x-40,topC.y-40,10,topC.x,topC.y,r);
+    grad1.addColorStop(0,'rgba(30,42,72,0.9)');
+    grad1.addColorStop(1,'rgba(10,14,24,0.55)');
+    ctx.fillStyle = grad1;
+    ctx.beginPath();
+    ctx.arc(topC.x, topC.y, r, 0, Math.PI*2);
+    ctx.fill();
+
+    if(phaseIdx >= 4){
+      const grad2 = ctx.createRadialGradient(botC.x-40,botC.y-40,10,botC.x,botC.y,r);
+      grad2.addColorStop(0,'rgba(30,42,72,0.9)');
+      grad2.addColorStop(1,'rgba(10,14,24,0.55)');
+      ctx.fillStyle = grad2;
+      ctx.beginPath();
+      ctx.arc(botC.x, botC.y, r, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(124,242,156,0.55)';
+    ctx.beginPath();
+    ctx.arc(topC.x, topC.y, r, 0, Math.PI*2);
+    ctx.stroke();
+    if(phaseIdx >= 4){
+      ctx.beginPath();
+      ctx.arc(botC.x, botC.y, r, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return {topC, botC, r, sep};
+  }
+
+  function drawBackgroundField(){
+    ctx.save();
+    ctx.fillStyle = '#05070c';
+    ctx.fillRect(0,0,W,H);
+    // soft vignette
+    const g = ctx.createRadialGradient(CX,CY,60,CX,CY,W*0.62);
+    g.addColorStop(0,'rgba(14,20,36,0.0)');
+    g.addColorStop(1,'rgba(0,0,0,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,W,H);
+    // subtle particulate
+    ctx.restore();
+  }
+
+  function currentPhase(t){
+    let acc = 0;
+    for(let i=0;i<PHASES.length;i++){
+      if(t < acc + PHASES[i].dur || i === PHASES.length-1){
+        const local = clamp01((t-acc)/PHASES[i].dur);
+        return {idx:i, p:local};
+      }
+      acc += PHASES[i].dur;
+    }
+    return {idx: PHASES.length-1, p:1};
+  }
+
+  function updateUI(idx, tGlobal){
+    PHASES.forEach((ph,i)=>{
+      const start = phaseStartTime(i);
+      const frac = clamp01((tGlobal - start)/ph.dur);
+      segEls[i].fill.style.width = (frac*100)+'%';
+      segEls[i].seg.classList.toggle('active', i===idx);
+      phaseListEl.children[i].classList.toggle('active', i===idx);
+    });
+    phaseBadge.textContent = PHASES[idx].name.toUpperCase();
+    phaseNameEl.textContent = PHASES[idx].name;
+    phaseDescEl.textContent = PHASES[idx].desc;
+  }
+
+  function render(force){
+    const {idx, p} = currentPhase(cursorT);
+    updateUI(idx, cursorT);
+
+    drawBackgroundField();
+    const mem = drawMembrane(idx, p);
+
+    // Nuclear envelope(s)
+    const envAlpha = envelopeAlpha(idx, p);
+    if(idx <= 2){
+      drawEnvelope(CX, CY, CELL_R*0.46, envAlpha);
+    } else if(idx >= 5){
+      drawEnvelope(mem.topC.x, mem.topC.y, CELL_R*0.34, envAlpha);
+      drawEnvelope(mem.botC.x, mem.botC.y, CELL_R*0.34, envAlpha);
+    }
+
+    // Centrosomes + spindle
+    let cTop = {x: CX, y: CY - CELL_R*0.42};
+    let cBot = {x: CX, y: CY - CELL_R*0.42}; // default overlapping (pre-duplication visual)
+    let showBoth = true;
+    let asterAlpha = 1;
+
+    if(idx === 0){ // interphase: single duplicated pair near nucleus edge, faint
+      cTop = {x: CX - 8, y: CY - CELL_R*0.44};
+      cBot = {x: CX + 8, y: CY - CELL_R*0.44};
+      asterAlpha = 0.5;
+    } else if(idx === 1){ // prophase: migrating to poles
+      const t = easeInOut(p);
+      cTop = {x: lerp(CX-8, POLE_TOP.x, t), y: lerp(CY-CELL_R*0.44, POLE_TOP.y, t)};
+      cBot = {x: lerp(CX+8, POLE_BOT.x, t), y: lerp(CY-CELL_R*0.44, POLE_BOT.y, t)};
+    } else {
+      cTop = POLE_TOP; cBot = POLE_BOT;
+    }
+
+    const chroms = getChromosomes(idx, p, CELL_R);
+
+    // spindle fibers (prometaphase through anaphase)
+    if(idx >= 2 && idx <= 4){
+      chroms.forEach(c => {
+        ctx.save();
+        ctx.strokeStyle = 'rgba(124,242,156,0.35)';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(cTop.x, cTop.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cBot.x, cBot.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    drawCentrosome(cTop.x, cTop.y, asterAlpha, idx>=1, idx>=2&&idx<=4?chroms:null);
+    drawCentrosome(cBot.x, cBot.y, asterAlpha, idx>=1 && idx!==0, idx>=2&&idx<=4?chroms:null);
+
+    chroms.forEach(drawChromosome);
+
+    // equatorial plate guide at metaphase
+    if(idx === 3){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.setLineDash([2,5]);
+      ctx.beginPath();
+      ctx.moveTo(CX-150, CY);
+      ctx.lineTo(CX+150, CY);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function tick(ts){
+    if(lastTs === null) lastTs = ts;
+    const dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    if(playing && !scrubbing){
+      cursorT += dt * speed;
+      if(cursorT >= totalDur) cursorT = 0; // loop
+    }
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
